@@ -7,11 +7,14 @@ import AssertSplattributeExpressions from './assert-splattribute-expression';
 import DeprecateSendAction from './deprecate-send-action';
 import TransformActionSyntax from './transform-action-syntax';
 import TransformAttrsIntoArgs from './transform-attrs-into-args';
-import TransformComponentInvocation from './transform-component-invocation';
+import {
+  DebugTransformComponentInvocation,
+  TransformComponentInvocation,
+} from './transform-component-invocation';
 import TransformEachInIntoEach from './transform-each-in-into-each';
 import TransformEachTrackArray from './transform-each-track-array';
 import TransformHasBlockSyntax from './transform-has-block-syntax';
-import TransformInElement from './transform-in-element';
+import { DebugTransformInElement, TransformInElement } from './transform-in-element';
 import TransformLinkTo from './transform-link-to';
 import TransformOldClassBindingSyntax from './transform-old-class-binding-syntax';
 import TransformQuotedBindingsIntoJustBindings from './transform-quoted-bindings-into-just-bindings';
@@ -25,7 +28,7 @@ export type APluginFunc = (env: ASTPluginEnvironment) => ASTPlugin | undefined;
 
 // order of plugins is important
 const transforms: Array<APluginFunc> = [
-  TransformComponentInvocation,
+  DebugTransformComponentInvocation,
   TransformOldClassBindingSyntax,
   TransformQuotedBindingsIntoJustBindings,
   AssertReservedNamedArguments,
@@ -36,12 +39,12 @@ const transforms: Array<APluginFunc> = [
   AssertLocalVariableShadowingHelperInvocation,
   TransformLinkTo,
   AssertInputHelperWithoutBlock,
-  TransformInElement,
+  DebugTransformInElement,
   AssertIfHelperWithoutArguments,
   AssertSplattributeExpressions,
   TransformEachTrackArray,
   TransformWrapMountAndOutlet,
-];
+].filter(v => v !== null);
 
 if (SEND_ACTION) {
   transforms.push(DeprecateSendAction);
@@ -50,5 +53,17 @@ if (SEND_ACTION) {
 if (!EMBER_NAMED_BLOCKS) {
   transforms.push(AssertAgainstNamedBlocks);
 }
+
+export const DEBUG_PLUGINS: Array<APluginFunc[] | APluginFunc> = [
+  [DebugTransformComponentInvocation, TransformComponentInvocation],
+  [DebugTransformInElement, TransformInElement],
+  AssertReservedNamedArguments,
+  AssertLocalVariableShadowingHelperInvocation,
+  AssertInputHelperWithoutBlock,
+  AssertIfHelperWithoutArguments,
+  AssertSplattributeExpressions,
+  DeprecateSendAction,
+  AssertAgainstNamedBlocks,
+];
 
 export default Object.freeze(transforms);

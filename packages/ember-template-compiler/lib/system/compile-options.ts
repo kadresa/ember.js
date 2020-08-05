@@ -1,7 +1,7 @@
 import { assign } from '@ember/polyfills';
 import { PrecompileOptions } from '@glimmer/compiler';
 import { AST, ASTPlugin, ASTPluginEnvironment, Syntax } from '@glimmer/syntax';
-import PLUGINS, { APluginFunc } from '../plugins/index';
+import PLUGINS, { APluginFunc, DEBUG_PLUGINS } from '../plugins/index';
 import COMPONENT_NAME_SIMPLE_DASHERIZE_CACHE from './dasherize-component-name';
 
 type PluginFunc = APluginFunc & {
@@ -17,6 +17,7 @@ export interface CompileOptions {
   meta?: any;
   moduleName?: string | undefined;
   plugins?: Plugins | undefined;
+  isProduction?: boolean;
 }
 
 export default function compileOptions(_options: Partial<CompileOptions> = {}): PrecompileOptions {
@@ -40,7 +41,24 @@ export default function compileOptions(_options: Partial<CompileOptions> = {}): 
     let pluginsToAdd = potententialPugins.filter(plugin => {
       return options.plugins!.ast.indexOf(plugin) === -1;
     });
+
     options.plugins.ast = providedPlugins.concat(pluginsToAdd);
+  }
+
+  if (options.isProduction) {
+    let plugins = options.plugins.ast;
+
+    for (let plugin of DEBUG_PLUGINS) {
+      if (Array.isArray(plugin)) {
+        let [debugPlugin, prodPlugin] = plugin;
+
+        let index = plugins.indexOf(debugPlugin);
+        plugins.splice(index, 1, prodPlugin);
+      } else {
+        let index = plugins.indexOf(plugin);
+        plugins.splice(index, 1);
+      }
+    }
   }
 
   return options;

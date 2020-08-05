@@ -42,85 +42,90 @@ import { isPath } from './utils';
   @private
   @class TransformInElement
 */
-export default function transformInElement(env: ASTPluginEnvironment): ASTPlugin {
-  let { moduleName } = env.meta as StaticTemplateMeta;
-  let { builders: b } = env.syntax;
+function buildTransformInElement(isProduction: boolean) {
+  return (env: ASTPluginEnvironment): ASTPlugin => {
+    let { moduleName } = env.meta as StaticTemplateMeta;
+    let { builders: b } = env.syntax;
 
-  return {
-    name: 'transform-in-element',
+    return {
+      name: 'transform-in-element',
 
-    visitor: {
-      BlockStatement(node: AST.BlockStatement) {
-        if (!isPath(node.path)) return;
+      visitor: {
+        BlockStatement(node: AST.BlockStatement) {
+          if (!isPath(node.path)) return;
 
-        if (node.path.original === 'in-element') {
-          if (EMBER_GLIMMER_IN_ELEMENT) {
-            let originalValue = node.params[0];
+          if (node.path.original === 'in-element') {
+            if (EMBER_GLIMMER_IN_ELEMENT) {
+              let originalValue = node.params[0];
 
-            if (originalValue) {
-              let subExpr = b.sexpr('-in-el-null', [originalValue]);
+              if (originalValue && !isProduction) {
+                let subExpr = b.sexpr('-in-el-null', [originalValue]);
 
-              node.params.shift();
-              node.params.unshift(subExpr);
+                node.params.shift();
+                node.params.unshift(subExpr);
+              }
+
+              node.hash.pairs.forEach(pair => {
+                if (pair.key === 'insertBefore') {
+                  assert(
+                    `Can only pass null to insertBefore in in-element, received: ${JSON.stringify(
+                      pair.value
+                    )}`,
+                    pair.value.type === 'NullLiteral' || pair.value.type === 'UndefinedLiteral'
+                  );
+                }
+              });
+            } else {
+              assert(assertMessage(moduleName, node));
+            }
+          } else if (node.path.original === '-in-element') {
+            if (EMBER_GLIMMER_IN_ELEMENT) {
+              let sourceInformation = calculateLocationDisplay(moduleName, node.loc);
+              deprecate(
+                `The use of the private \`{{-in-element}}\` is deprecated, please refactor to the public \`{{in-element}}\`. ${sourceInformation}`,
+                false,
+                {
+                  id: 'glimmer.private-in-element',
+                  until: '3.25.0',
+                }
+              );
             }
 
-            node.hash.pairs.forEach(pair => {
+            node.path.original = 'in-element';
+            node.path.parts = ['in-element'];
+
+            // replicate special hash arguments added here:
+            // https://github.com/glimmerjs/glimmer-vm/blob/ba9b37d44b85fa1385eeeea71910ff5798198c8e/packages/%40glimmer/syntax/lib/parser/handlebars-node-visitors.ts#L340-L363
+            let needsInsertBefore = true;
+            let hash = node.hash;
+            hash.pairs.forEach(pair => {
               if (pair.key === 'insertBefore') {
                 assert(
-                  `Can only pass null to insertBefore in in-element, received: ${JSON.stringify(
+                  `Can only pass a null or undefined literals to insertBefore in -in-element, received: ${JSON.stringify(
                     pair.value
                   )}`,
                   pair.value.type === 'NullLiteral' || pair.value.type === 'UndefinedLiteral'
                 );
+
+                needsInsertBefore = false;
               }
             });
-          } else {
-            assert(assertMessage(moduleName, node));
-          }
-        } else if (node.path.original === '-in-element') {
-          if (EMBER_GLIMMER_IN_ELEMENT) {
-            let sourceInformation = calculateLocationDisplay(moduleName, node.loc);
-            deprecate(
-              `The use of the private \`{{-in-element}}\` is deprecated, please refactor to the public \`{{in-element}}\`. ${sourceInformation}`,
-              false,
-              {
-                id: 'glimmer.private-in-element',
-                until: '3.25.0',
-              }
-            );
-          }
 
-          node.path.original = 'in-element';
-          node.path.parts = ['in-element'];
-
-          // replicate special hash arguments added here:
-          // https://github.com/glimmerjs/glimmer-vm/blob/ba9b37d44b85fa1385eeeea71910ff5798198c8e/packages/%40glimmer/syntax/lib/parser/handlebars-node-visitors.ts#L340-L363
-          let needsInsertBefore = true;
-          let hash = node.hash;
-          hash.pairs.forEach(pair => {
-            if (pair.key === 'insertBefore') {
-              assert(
-                `Can only pass a null or undefined literals to insertBefore in -in-element, received: ${JSON.stringify(
-                  pair.value
-                )}`,
-                pair.value.type === 'NullLiteral' || pair.value.type === 'UndefinedLiteral'
-              );
-
-              needsInsertBefore = false;
+            // Maintain compatibility with previous -in-element behavior (defaults to append, not clear)
+            if (needsInsertBefore) {
+              let nullLiteral = b.literal('NullLiteral', null);
+              let nextSibling = b.pair('insertBefore', nullLiteral);
+              hash.pairs.push(nextSibling);
             }
-          });
-
-          // Maintain compatibility with previous -in-element behavior (defaults to append, not clear)
-          if (needsInsertBefore) {
-            let nullLiteral = b.literal('NullLiteral', null);
-            let nextSibling = b.pair('insertBefore', nullLiteral);
-            hash.pairs.push(nextSibling);
           }
-        }
+        },
       },
-    },
+    };
   };
 }
+
+export const DebugTransformInElement = buildTransformInElement(false);
+export const TransformInElement = buildTransformInElement(true);
 
 function assertMessage(moduleName: string, node: AST.BlockStatement) {
   let sourceInformation = calculateLocationDisplay(moduleName, node.loc);

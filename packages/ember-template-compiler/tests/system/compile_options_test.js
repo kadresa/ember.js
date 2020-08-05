@@ -5,6 +5,7 @@ import {
   registerPlugin,
   unregisterPlugin,
 } from '../../index';
+import { DEBUG_PLUGINS } from '../../lib/plugins/index';
 import { moduleFor, AbstractTestCase, RenderingTestCase } from 'internal-test-helpers';
 
 moduleFor(
@@ -22,6 +23,19 @@ moduleFor(
       for (let i = 0; i < defaultPlugins.length; i++) {
         let plugin = defaultPlugins[i];
         assert.ok(plugins.indexOf(plugin) > -1, `includes ${plugin}`);
+      }
+    }
+
+    ['@test isProduction removes and replaces debug plugins'](assert) {
+      let plugins = compileOptions({ isProduction: true }).plugins.ast;
+
+      for (let plugin of DEBUG_PLUGINS) {
+        if (Array.isArray(plugin)) {
+          assert.equal(plugins.indexOf(plugin[0]), -1, 'debug plugin removed');
+          assert.notEqual(plugins.indexOf(plugin[1]), -1, 'prod plugin added');
+        } else {
+          assert.equal(plugins.indexOf(plugin), -1, 'debug plugin removed');
+        }
       }
     }
   }

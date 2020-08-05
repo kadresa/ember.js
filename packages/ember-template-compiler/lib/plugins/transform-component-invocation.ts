@@ -1,5 +1,5 @@
 import { StaticTemplateMeta } from '@ember/-internals/views';
-import { AST, ASTPlugin, ASTPluginEnvironment } from '@glimmer/syntax';
+import { AST, ASTPluginEnvironment } from '@glimmer/syntax';
 import calculateLocationDisplay from '../system/calculate-location-display';
 import { Builders } from '../types';
 import { isPath, trackLocals } from './utils';
@@ -122,50 +122,55 @@ import { isPath, trackLocals } from './utils';
   @private
   @class TransFormComponentInvocation
 */
-export default function transformComponentInvocation(env: ASTPluginEnvironment): ASTPlugin {
-  let { moduleName } = env.meta as StaticTemplateMeta;
-  let { builders: b } = env.syntax;
+function buildTransformComponentInvocation(isProduction: boolean) {
+  return (env: ASTPluginEnvironment) => {
+    let { moduleName } = env.meta as StaticTemplateMeta;
+    let { builders: b } = env.syntax;
 
-  let { hasLocal, node } = trackLocals();
+    let { hasLocal, node } = trackLocals();
 
-  let isAttrs = false;
+    let isAttrs = false;
 
-  return {
-    name: 'transform-component-invocation',
+    return {
+      name: 'transform-component-invocation',
 
-    visitor: {
-      Program: node,
+      visitor: {
+        Program: node,
 
-      ElementNode: {
-        keys: {
-          attributes: {
-            enter() {
-              isAttrs = true;
+        ElementNode: {
+          keys: {
+            attributes: {
+              enter() {
+                isAttrs = true;
+              },
+
+              exit() {
+                isAttrs = false;
+              },
             },
 
-            exit() {
-              isAttrs = false;
-            },
+            children: node,
           },
+        },
 
-          children: node,
+        BlockStatement(node: AST.BlockStatement) {
+          if (isBlockInvocation(node, hasLocal)) {
+            wrapInComponent(moduleName, node, b, isProduction);
+          }
+        },
+
+        MustacheStatement(node: AST.MustacheStatement): AST.Node | void {
+          if (!isAttrs && isInlineInvocation(node, hasLocal)) {
+            wrapInComponent(moduleName, node, b, isProduction);
+          }
         },
       },
-
-      BlockStatement(node: AST.BlockStatement) {
-        if (isBlockInvocation(node, hasLocal)) {
-          wrapInComponent(moduleName, node, b);
-        }
-      },
-
-      MustacheStatement(node: AST.MustacheStatement): AST.Node | void {
-        if (!isAttrs && isInlineInvocation(node, hasLocal)) {
-          wrapInComponent(moduleName, node, b);
-        }
-      },
-    },
+    };
   };
 }
+
+export const DebugTransformComponentInvocation = buildTransformComponentInvocation(false);
+export const TransformComponentInvocation = buildTransformComponentInvocation(true);
 
 function isInlineInvocation(
   node: AST.MustacheStatement,
@@ -223,9 +228,12 @@ function wrapInAssertion(moduleName: string, node: AST.PathExpression, b: Builde
 function wrapInComponent(
   moduleName: string,
   node: AST.MustacheStatement | AST.BlockStatement,
-  b: Builders
+  b: Builders,
+  isProduction: boolean
 ) {
-  let component = wrapInAssertion(moduleName, node.path as AST.PathExpression, b);
+  let component = isProduction
+    ? node.path
+    : wrapInAssertion(moduleName, node.path as AST.PathExpression, b);
   node.path = b.path('component');
   node.params.unshift(component);
 }
