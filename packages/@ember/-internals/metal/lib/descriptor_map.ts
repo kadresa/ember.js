@@ -1,10 +1,7 @@
 import { Meta, peekMeta } from '@ember/-internals/meta';
 import { assert } from '@ember/debug';
 
-const DECORATOR_DESCRIPTOR_MAP: WeakMap<
-  import('./decorator').Decorator,
-  import('./decorator').ComputedDescriptor | boolean
-> = new WeakMap();
+const DECORATOR_DESCRIPTOR_MAP: WeakMap<Function, unknown | boolean> = new WeakMap();
 
 /**
   Returns the CP descriptor associated with `obj` and `keyName`, if any.
@@ -30,8 +27,8 @@ export function descriptorForProperty(obj: object, keyName: string, _meta?: Meta
   }
 }
 
-export function descriptorForDecorator(dec: import('./decorator').Decorator) {
-  return DECORATOR_DESCRIPTOR_MAP.get(dec);
+export function descriptorForDecorator<T>(dec: Function): T | true | undefined {
+  return DECORATOR_DESCRIPTOR_MAP.get(dec) as T;
 }
 
 /**
@@ -43,7 +40,7 @@ export function descriptorForDecorator(dec: import('./decorator').Decorator) {
   @private
 */
 export function isClassicDecorator(dec: any) {
-  return dec !== null && dec !== undefined && DECORATOR_DESCRIPTOR_MAP.has(dec);
+  return typeof dec === 'function' && DECORATOR_DESCRIPTOR_MAP.has(dec);
 }
 
 /**
@@ -53,6 +50,6 @@ export function isClassicDecorator(dec: any) {
   @param {function} decorator the value to mark as a decorator
   @private
 */
-export function setClassicDecorator(dec: import('./decorator').Decorator, value: any = true) {
+export function setClassicDecorator(dec: Function, value: any = true) {
   DECORATOR_DESCRIPTOR_MAP.set(dec, value);
 }

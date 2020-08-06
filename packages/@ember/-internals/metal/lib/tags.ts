@@ -9,7 +9,7 @@ import { CONSTANT_TAG, dirtyTagFor, Tag, tagFor, TagMeta } from '@glimmer/valida
 export const CUSTOM_TAG_FOR = symbol('CUSTOM_TAG_FOR');
 
 // This is exported for `@tracked`, but should otherwise be avoided. Use `tagForObject`.
-export const SELF_TAG: string = symbol('SELF_TAG');
+export const SELF_TAG = symbol('SELF_TAG');
 
 export function tagForProperty(
   obj: object,
